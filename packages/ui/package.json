@@ -1,0 +1,17 @@
+{
+  "name": "@devcreator/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "@devcreator/types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/react": "^19.0.0"
+  }
+}

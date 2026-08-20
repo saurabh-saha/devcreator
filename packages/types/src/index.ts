@@ -50,7 +50,7 @@ export interface CreatorProfile {
   expertise: string[];
   topics: Topic[];
   tone: CreatorTone;
-  targetAudience: string;
+  targetAudience: string | null;
   contentPillars: string[];
   voiceSummary: string | null;
   updatedAt: Date;

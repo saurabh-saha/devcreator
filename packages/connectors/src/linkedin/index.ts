@@ -5,7 +5,7 @@ const LINKEDIN_API = "https://api.linkedin.com/v2";
 export class LinkedInConnector {
   constructor(private tokens: OAuthTokens) {}
 
-  private async fetch(path: string, options?: RequestInit) {
+  private async fetch(path: string, options?: RequestInit): Promise<Record<string, unknown>> {
     const res = await fetch(`${LINKEDIN_API}${path}`, {
       ...options,
       headers: {
@@ -15,15 +15,15 @@ export class LinkedInConnector {
       },
     });
     if (!res.ok) throw new Error(`LinkedIn API error: ${res.status} ${await res.text()}`);
-    return res.json();
+    return res.json() as Promise<Record<string, unknown>>;
   }
 
   async getProfile(): Promise<{ id: string; name: string; followerCount: number }> {
     const profile = await this.fetch("/me?projection=(id,localizedFirstName,localizedLastName)");
     // Follower count requires a separate endpoint for company pages; personal profiles use networkSize
     return {
-      id: profile.id,
-      name: `${profile.localizedFirstName} ${profile.localizedLastName}`,
+      id: profile["id"] as string,
+      name: `${profile["localizedFirstName"]} ${profile["localizedLastName"]}`,
       followerCount: 0, // populated by analytics sync job
     };
   }
@@ -32,19 +32,18 @@ export class LinkedInConnector {
     const data = await this.fetch(
       `/ugcPosts?q=authors&authors=List(urn:li:person:${authorId})&count=${count}`
     );
-    return (data.elements ?? []).map((el: Record<string, unknown>) => ({
-      platformId: el.id as string,
-      body: (el.specificContent as Record<string, unknown>)?.["com.linkedin.ugc.ShareContent"]
-        ? String(
-            (
-              (el.specificContent as Record<string, unknown>)[
-                "com.linkedin.ugc.ShareContent"
-              ] as Record<string, unknown>
-            )?.shareCommentary?.text ?? ""
-          )
-        : "",
-      publishedAt: new Date(el.created?.time as number),
-    }));
+    return ((data["elements"] as Record<string, unknown>[]) ?? []).map((el) => {
+      const shareContent = (el.specificContent as Record<string, unknown>)?.[
+        "com.linkedin.ugc.ShareContent"
+      ] as Record<string, unknown> | undefined;
+      const commentary = shareContent?.["shareCommentary"] as Record<string, unknown> | undefined;
+      const body = (commentary?.["text"] as string) ?? "";
+      return {
+        platformId: el.id as string,
+        body,
+        publishedAt: new Date((el.created as Record<string, unknown>)?.["time"] as number),
+      };
+    });
   }
 
   static getOAuthUrl(clientId: string, redirectUri: string, state: string): string {

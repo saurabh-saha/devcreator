@@ -5,20 +5,20 @@ const GRAPH_API = "https://graph.instagram.com/v21.0";
 export class InstagramConnector {
   constructor(private tokens: OAuthTokens) {}
 
-  private async fetch(path: string) {
+  private async fetch(path: string): Promise<Record<string, unknown>> {
     const url = new URL(`${GRAPH_API}${path}`);
     url.searchParams.set("access_token", this.tokens.accessToken);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Instagram API error: ${res.status} ${await res.text()}`);
-    return res.json();
+    return res.json() as Promise<Record<string, unknown>>;
   }
 
   async getProfile(): Promise<{ id: string; username: string; followerCount: number }> {
     const data = await this.fetch("/me?fields=id,username,followers_count");
     return {
-      id: data.id,
-      username: data.username,
-      followerCount: data.followers_count ?? 0,
+      id: data["id"] as string,
+      username: data["username"] as string,
+      followerCount: data["followers_count"] as number ?? 0,
     };
   }
 
@@ -26,7 +26,7 @@ export class InstagramConnector {
     const data = await this.fetch(
       `/${userId}/media?fields=id,caption,timestamp,permalink,like_count,comments_count&limit=${count}`
     );
-    return (data.data ?? []).map((el: Record<string, unknown>) => ({
+    return ((data["data"] as Record<string, unknown>[]) ?? []).map((el) => ({
       platformId: el.id as string,
       body: (el.caption as string) ?? "",
       publishedAt: new Date(el.timestamp as string),

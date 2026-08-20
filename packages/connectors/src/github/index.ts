@@ -15,7 +15,7 @@ export interface GitHubRepo {
 export class GitHubConnector {
   constructor(private tokens: OAuthTokens) {}
 
-  private async fetch(path: string) {
+  private async fetch(path: string): Promise<Record<string, unknown>> {
     const res = await fetch(`${GH_API}${path}`, {
       headers: {
         Authorization: `Bearer ${this.tokens.accessToken}`,
@@ -23,21 +23,27 @@ export class GitHubConnector {
       },
     });
     if (!res.ok) throw new Error(`GitHub API error: ${res.status} ${await res.text()}`);
-    return res.json();
+    return res.json() as Promise<Record<string, unknown>>;
   }
 
   async getUser(): Promise<{ login: string; name: string; bio: string | null }> {
-    return this.fetch("/user");
+    const data = await this.fetch("/user");
+    return {
+      login: data["login"] as string,
+      name: data["name"] as string,
+      bio: data["bio"] as string | null,
+    };
   }
 
   async getPublicRepos(username: string): Promise<GitHubRepo[]> {
-    const repos = await this.fetch(`/users/${username}/repos?sort=updated&per_page=30`);
+    const reposData = await this.fetch(`/users/${username}/repos?sort=updated&per_page=30`);
+    const repos = reposData as unknown as Record<string, unknown>[];
     return Promise.all(
-      (repos as Record<string, unknown>[]).map(async (r) => {
+      repos.map(async (r) => {
         let readmeContent: string | null = null;
         try {
-          const readme = await this.fetch(`/repos/${username}/${r.name}/readme`);
-          readmeContent = atob(readme.content.replace(/\n/g, ""));
+          const readme = await this.fetch(`/repos/${username}/${r["name"]}/readme`);
+          readmeContent = atob((readme["content"] as string).replace(/\n/g, ""));
         } catch {
           // repo may not have a README
         }

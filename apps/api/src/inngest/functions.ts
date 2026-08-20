@@ -29,7 +29,7 @@ export const ingestLinkedIn = inngest.createFunction(
             format: "post",
             body: post.body,
             status: "published",
-            publishedAt: post.publishedAt,
+            publishedAt: new Date(post.publishedAt as unknown as string),
           })
           .onConflictDoNothing();
       }
@@ -65,7 +65,7 @@ export const ingestYouTube = inngest.createFunction(
             title: video.title,
             body: video.body,
             status: "published",
-            publishedAt: video.publishedAt,
+            publishedAt: new Date(video.publishedAt as unknown as string),
           })
           .onConflictDoNothing();
 

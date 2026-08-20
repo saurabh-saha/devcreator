@@ -55,5 +55,5 @@ Rules:
 - The rationale must explain WHY this fits this specific creator`,
   });
 
-  return object.ideas;
+  return (object as { ideas: GeneratedIdea[] }).ideas;
 }

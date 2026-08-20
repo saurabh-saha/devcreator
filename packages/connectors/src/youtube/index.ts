@@ -5,23 +5,24 @@ const YT_API = "https://www.googleapis.com/youtube/v3";
 export class YouTubeConnector {
   constructor(private tokens: OAuthTokens) {}
 
-  private async fetch(path: string) {
+  private async fetch(path: string): Promise<Record<string, unknown>> {
     const res = await fetch(`${YT_API}${path}`, {
       headers: { Authorization: `Bearer ${this.tokens.accessToken}` },
     });
     if (!res.ok) throw new Error(`YouTube API error: ${res.status} ${await res.text()}`);
-    return res.json();
+    return res.json() as Promise<Record<string, unknown>>;
   }
 
   async getChannel(): Promise<{ id: string; title: string; subscriberCount: number }> {
-    const data = await this.fetch(
-      "/channels?part=snippet,statistics&mine=true"
-    );
-    const channel = data.items?.[0];
+    const data = await this.fetch("/channels?part=snippet,statistics&mine=true");
+    const items = data["items"] as Record<string, unknown>[];
+    const channel = items?.[0] ?? {};
+    const snippet = channel["snippet"] as Record<string, unknown>;
+    const statistics = channel["statistics"] as Record<string, unknown>;
     return {
-      id: channel.id,
-      title: channel.snippet.title,
-      subscriberCount: parseInt(channel.statistics.subscriberCount ?? "0"),
+      id: channel["id"] as string,
+      title: snippet["title"] as string,
+      subscriberCount: parseInt(statistics["subscriberCount"] as string ?? "0"),
     };
   }
 
@@ -29,14 +30,16 @@ export class YouTubeConnector {
     const search = await this.fetch(
       `/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=${maxResults}`
     );
-    const videoIds = (search.items ?? []).map((v: Record<string, unknown>) => v.id?.videoId).filter(Boolean).join(",");
+    const searchItems = search["items"] as Record<string, unknown>[] ?? [];
+    const videoIds = searchItems
+      .map((v) => (v["id"] as Record<string, unknown>)?.["videoId"])
+      .filter(Boolean)
+      .join(",");
     if (!videoIds) return [];
 
-    const stats = await this.fetch(
-      `/videos?part=snippet,statistics&id=${videoIds}`
-    );
+    const stats = await this.fetch(`/videos?part=snippet,statistics&id=${videoIds}`);
 
-    return (stats.items ?? []).map((v: Record<string, unknown>) => ({
+    return (stats["items"] as Record<string, unknown>[] ?? []).map((v) => ({
       platformId: v.id as string,
       title: (v.snippet as Record<string, unknown>).title as string,
       body: (v.snippet as Record<string, unknown>).description as string,
