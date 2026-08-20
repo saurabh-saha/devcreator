@@ -115,7 +115,7 @@ export const content = pgTable(
   (t) => [
     index("content_user_idx").on(t.userId),
     index("content_platform_idx").on(t.platform),
-    index("content_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    // Phase 2: index("content_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ]
 );
 
@@ -156,7 +156,7 @@ export const knowledgeDocuments = pgTable(
   },
   (t) => [
     index("knowledge_user_idx").on(t.userId),
-    index("knowledge_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+    // Phase 2: index("knowledge_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ]
 );
 

@@ -1,18 +1,28 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
+import { groq } from "@ai-sdk/groq";
+import { createOpenAI } from "@ai-sdk/openai";
 
-// Task → model mapping. Swap models here without touching agent code.
+// OpenRouter is OpenAI-compatible — point base URL at their gateway
+const openrouter = createOpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY ?? "",
+  headers: {
+    "HTTP-Referer": process.env.WEB_URL ?? "http://localhost:3000",
+    "X-Title": "DevCreator",
+  },
+});
+
+// ─── Task taxonomy ─────────────────────────────────────────────────────────
 export type ModelTask =
-  | "chat"          // Creator Brain chat — needs context, nuance
-  | "ideas"         // Idea generation — creative, fast
-  | "content"       // Long-form content creation — quality matters
-  | "analysis"      // Analytics interpretation — reasoning heavy
-  | "embedding"     // Vector embeddings for knowledge base
-  | "vision"        // Image understanding (carousel analysis, etc.)
-  | "fast";         // Cheap, fast tasks (classification, tagging)
+  | "chat"      // Creator Brain chat — context-aware, multi-turn
+  | "ideas"     // Idea generation — creative, structured output
+  | "content"   // Long-form content creation — quality over speed
+  | "analysis"  // Deep insight/analytics reasoning
+  | "vision"    // Image understanding (thumbnails, screenshots, carousels)
+  | "fast"      // Batch classification, topic extraction, metadata tagging
+  | "classify"; // Single-shot categorisation (sentiment, format detection)
 
-export type ModelProvider = "anthropic" | "google" | "openai";
+export type ModelProvider = "gemini" | "groq" | "openrouter";
 
 interface ModelConfig {
   provider: ModelProvider;
@@ -20,58 +30,69 @@ interface ModelConfig {
   label: string;
 }
 
-// Central routing table — edit this to swap models per task
+// ─── Central routing table ─────────────────────────────────────────────────
+// Edit here to swap models without touching agent code.
+// Gemini → primary (all important work)
+// Groq   → fast/cheap (classification, extraction, batches)
+// OpenRouter → experimental fallback only
 const MODEL_ROUTING: Record<ModelTask, ModelConfig> = {
   chat: {
-    provider: "anthropic",
-    modelId: "claude-sonnet-5",
-    label: "Claude Sonnet 5 (Creator Chat)",
+    provider: "gemini",
+    modelId: "gemini-2.0-flash",
+    label: "Gemini Flash (Creator Brain Chat)",
   },
   ideas: {
-    provider: "google",
+    provider: "gemini",
     modelId: "gemini-2.0-flash",
     label: "Gemini Flash (Idea Generation)",
   },
   content: {
-    provider: "anthropic",
-    modelId: "claude-sonnet-5",
-    label: "Claude Sonnet 5 (Content Creation)",
+    provider: "gemini",
+    modelId: "gemini-2.0-flash",
+    label: "Gemini Flash (Content Creation)",
   },
   analysis: {
-    provider: "anthropic",
-    modelId: "claude-opus-5",
-    label: "Claude Opus 5 (Deep Analysis)",
-  },
-  embedding: {
-    provider: "openai",
-    modelId: "text-embedding-3-small",
-    label: "OpenAI Embeddings",
+    provider: "gemini",
+    modelId: "gemini-2.5-pro",
+    label: "Gemini 2.5 Pro (Deep Analysis)",
   },
   vision: {
-    provider: "google",
+    provider: "gemini",
     modelId: "gemini-2.0-flash",
     label: "Gemini Flash (Vision)",
   },
   fast: {
-    provider: "google",
-    modelId: "gemini-2.0-flash",
-    label: "Gemini Flash (Fast)",
+    provider: "groq",
+    modelId: "llama-3.3-70b-versatile",
+    label: "Groq Llama 3.3 70B (Fast Tasks)",
+  },
+  classify: {
+    provider: "groq",
+    modelId: "llama-3.1-8b-instant",
+    label: "Groq Llama 3.1 8B (Classification)",
   },
 };
 
+// ─── Model factory ─────────────────────────────────────────────────────────
 export function getModel(task: ModelTask) {
-  const config = MODEL_ROUTING[task];
+  const { provider, modelId } = MODEL_ROUTING[task];
 
-  switch (config.provider) {
-    case "anthropic":
-      return anthropic(config.modelId);
-    case "google":
-      return google(config.modelId);
-    case "openai":
-      return openai(config.modelId);
+  switch (provider) {
+    case "gemini":
+      return google(modelId);
+    case "groq":
+      return groq(modelId);
+    case "openrouter":
+      return openrouter(modelId);
     default:
-      throw new Error(`Unknown provider: ${config.provider}`);
+      throw new Error(`Unknown provider: ${provider}`);
   }
+}
+
+// Use this when you want to experiment with a specific OpenRouter free model
+// without wiring it into the routing table permanently.
+export function getOpenRouterModel(modelId: string) {
+  return openrouter(modelId);
 }
 
 export function getModelConfig(task: ModelTask): ModelConfig {
