@@ -8,8 +8,8 @@ import {
   jsonb,
   pgEnum,
   index,
-  vector,
 } from "drizzle-orm/pg-core";
+// vector import removed for Phase 1 — no embeddings until Phase 2
 
 // Enums
 export const platformEnum = pgEnum("platform", [
@@ -109,13 +109,12 @@ export const content = pgTable(
     topics: text("topics").array().notNull().default([]),
     status: contentStatusEnum("status").notNull().default("published"),
     publishedAt: timestamp("published_at"),
-    embedding: vector("embedding", { dimensions: 1536 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Phase 2: embedding vector(1536)
   },
   (t) => [
     index("content_user_idx").on(t.userId),
     index("content_platform_idx").on(t.platform),
-    // Phase 2: index("content_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ]
 );
 
@@ -150,13 +149,12 @@ export const knowledgeDocuments = pgTable(
     sourceRef: text("source_ref"),
     title: text("title"),
     body: text("body").notNull(),
-    embedding: vector("embedding", { dimensions: 1536 }),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Phase 2: embedding vector(1536)
   },
   (t) => [
     index("knowledge_user_idx").on(t.userId),
-    // Phase 2: index("knowledge_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ]
 );
 
