@@ -38,27 +38,27 @@ interface ModelConfig {
 const MODEL_ROUTING: Record<ModelTask, ModelConfig> = {
   chat: {
     provider: "gemini",
-    modelId: "gemini-2.0-flash",
+    modelId: "gemini-2.5-flash",
     label: "Gemini Flash (Creator Brain Chat)",
   },
   ideas: {
     provider: "gemini",
-    modelId: "gemini-2.0-flash",
+    modelId: "gemini-2.5-flash",
     label: "Gemini Flash (Idea Generation)",
   },
   content: {
     provider: "gemini",
-    modelId: "gemini-2.0-flash",
+    modelId: "gemini-2.5-flash",
     label: "Gemini Flash (Content Creation)",
   },
   analysis: {
     provider: "gemini",
-    modelId: "gemini-2.5-pro",
+    modelId: "gemini-2.5-pro-preview-06-05",
     label: "Gemini 2.5 Pro (Deep Analysis)",
   },
   vision: {
     provider: "gemini",
-    modelId: "gemini-2.0-flash",
+    modelId: "gemini-2.5-flash",
     label: "Gemini Flash (Vision)",
   },
   fast: {
