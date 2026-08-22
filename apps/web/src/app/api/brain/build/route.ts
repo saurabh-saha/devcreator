@@ -7,6 +7,20 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 
+function parseRSS(xml: string): { title: string; body: string; link: string }[] {
+  const items: { title: string; body: string; link: string }[] = [];
+  const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
+  for (const m of itemMatches) {
+    const inner = m[1];
+    const title = (inner.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) ?? inner.match(/<title>(.*?)<\/title>/))?.[1] ?? "";
+    const link = (inner.match(/<link>(.*?)<\/link>/))?.[1] ?? "";
+    const desc = (inner.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) ?? inner.match(/<description>(.*?)<\/description>/))?.[1] ?? "";
+    const body = desc.replace(/<[^>]+>/g, "").slice(0, 2000);
+    if (title) items.push({ title, body, link });
+  }
+  return items.slice(0, 5);
+}
+
 // ─── Inline schema ────────────────────────────────────────────────────────────
 const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),

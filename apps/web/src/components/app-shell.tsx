@@ -57,7 +57,7 @@ export function AppShell() {
   const [studioIdea, setStudioIdea] = useState<Record<string, any> | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     const orig = window.fetch;
