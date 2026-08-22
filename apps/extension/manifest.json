@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "DevCreator",
+  "version": "1.0.0",
+  "description": "Syncs your Medium stats with DevCreator",
+  "host_permissions": [
+    "https://medium.com/*",
+    "https://*.medium.com/*",
+    "http://localhost:3001/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3001/*",
+        "https://devcreator.app/*"
+      ],
+      "js": ["content-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "http://localhost:3001/*",
+        "https://devcreator.app/*"
+      ],
+      "js": ["content-fetch.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

@@ -211,6 +211,20 @@ export const insights = pgTable(
   (t) => [index("insights_user_idx").on(t.userId)]
 );
 
+export const mediumClaps = pgTable(
+  "medium_claps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    articleUrl: text("article_url").notNull(),
+    clapCount: integer("clap_count").notNull().default(0),
+    syncedAt: timestamp("synced_at").defaultNow().notNull(),
+  },
+  (t) => [index("medium_claps_user_idx").on(t.userId)]
+);
+
 export const chatSessions = pgTable("chat_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
