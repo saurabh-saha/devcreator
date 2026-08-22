@@ -165,17 +165,39 @@ function scrapeLinkedInDOM() {
       );
       const impressions = parseNum(impressionEl?.innerText?.match(/([\d,.]+[kK]?)/)?.[1] ?? "0");
 
-      // Likes — search for "N reactions" text anywhere (no children.length constraint)
-      const reactEl = [...el.querySelectorAll("*")].find(e =>
-        /^\d[\d,.]*[kK]?\s+reactions?$/i.test(e.innerText?.trim()) && e.innerText.trim().length < 20
-      );
-      let likes = reactEl ? parseNum(reactEl.innerText.match(/([\d,.]+[kK]?)/)?.[1] ?? "0") : 0;
-      // Fallback: button with reaction aria-label, find numeric span inside
+      // Likes — try multiple approaches in order of reliability
+      let likes = 0;
+
+      // 1. Reactions link aria-label: "10 reactions" or "See who reacted... 10 reactions"
+      const reactionsLink = el.querySelector("a[aria-label*='reaction' i]");
+      if (reactionsLink) {
+        const m = reactionsLink.getAttribute("aria-label")?.match(/([\d,.]+[kK]?)\s+reactions?/i);
+        if (m) likes = parseNum(m[1]);
+      }
+
+      // 2. Any element whose innerText contains "N reactions" (may have emoji prefix)
+      if (likes === 0) {
+        const reactEl = [...el.querySelectorAll("*")].find(e =>
+          /([\d,.]+[kK]?)\s+reactions?/i.test(e.innerText?.trim()) && e.innerText.trim().length < 40
+        );
+        if (reactEl) {
+          const m = reactEl.innerText.match(/([\d,.]+[kK]?)\s+reactions?/i);
+          if (m) likes = parseNum(m[1]);
+        }
+      }
+
+      // 3. Reaction button aria-label: "React Like. 10 reactions"
       if (likes === 0) {
         const reactionBtn = el.querySelector("button[aria-label*='reaction' i], button[aria-label*='React' i]");
         if (reactionBtn) {
-          const numSpan = [...reactionBtn.querySelectorAll("span")].find(s => /^\d[\d,.]*[kK]?$/.test(s.innerText?.trim()));
-          if (numSpan) likes = parseNum(numSpan.innerText);
+          const label = reactionBtn.getAttribute("aria-label") ?? "";
+          const m = label.match(/([\d,.]+[kK]?)\s+reactions?/i) ?? label.match(/^([\d,.]+[kK]?)$/);
+          if (m) {
+            likes = parseNum(m[1]);
+          } else {
+            const numSpan = [...reactionBtn.querySelectorAll("span")].find(s => /^\d[\d,.]*[kK]?$/.test(s.innerText?.trim()));
+            if (numSpan) likes = parseNum(numSpan.innerText);
+          }
         }
       }
 

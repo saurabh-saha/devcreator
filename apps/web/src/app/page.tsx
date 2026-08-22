@@ -20,17 +20,41 @@ export default function Home() {
       setStep("login");
       return;
     }
-    const done = localStorage.getItem("ob_done");
+
+    const key = (k: string) => `${k}_${session.user?.email ?? "anon"}`;
+
+    // Check localStorage first for fast path
+    const done = localStorage.getItem(key("ob_done"));
     if (done) { setStep("app"); return; }
 
-    const savedStep = localStorage.getItem("ob_step") as Step | null;
-    if (savedStep && savedStep !== "login" && savedStep !== "app") {
-      setStep(savedStep);
-      return;
-    }
-    const profileDone = localStorage.getItem("ob_profile");
-    if (profileDone) { setStep("connect"); return; }
-    setStep("profile");
+    // Check DB — if user already has a creator profile, skip onboarding entirely
+    fetch("/api/profile")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.profile) {
+          // Already onboarded in another browser/session
+          localStorage.setItem(key("ob_done"), "1");
+          setStep("app");
+          return;
+        }
+        // Fall back to localStorage-based step tracking
+        const savedStep = localStorage.getItem(key("ob_step")) as Step | null;
+        if (savedStep && savedStep !== "login" && savedStep !== "app") {
+          setStep(savedStep);
+          return;
+        }
+        const profileDone = localStorage.getItem(key("ob_profile"));
+        if (profileDone) { setStep("connect"); return; }
+        setStep("profile");
+      })
+      .catch(() => {
+        // Network error — fall back to localStorage
+        const savedStep = localStorage.getItem(key("ob_step")) as Step | null;
+        if (savedStep && savedStep !== "login" && savedStep !== "app") { setStep(savedStep); return; }
+        const profileDone = localStorage.getItem(key("ob_profile"));
+        if (profileDone) { setStep("connect"); return; }
+        setStep("profile");
+      });
   }, [session, status]);
 
   if (status === "loading") {
@@ -50,12 +74,14 @@ export default function Home() {
     return <LoginScreen />;
   }
 
+  const key = (k: string) => `${k}_${session.user?.email ?? "anon"}`;
+
   if (step === "profile") {
     return (
       <ProfileScreen
         name={session.user?.name ?? "there"}
         onContinue={(data) => {
-          localStorage.setItem("ob_profile", JSON.stringify(data));
+          localStorage.setItem(key("ob_profile"), JSON.stringify(data));
           setStep("connect");
         }}
       />
@@ -67,7 +93,7 @@ export default function Home() {
       <ConnectScreen
         onContinue={(connected) => {
           setConnectedPlatforms(connected);
-          localStorage.setItem("ob_step", "building");
+          localStorage.setItem(key("ob_step"), "building");
           setStep("building");
         }}
       />
@@ -79,8 +105,8 @@ export default function Home() {
       <BuildingScreen
         connected={connectedPlatforms}
         onDone={() => {
-          localStorage.removeItem("ob_step");
-          localStorage.setItem("ob_done", "1");
+          localStorage.removeItem(key("ob_step"));
+          localStorage.setItem(key("ob_done"), "1");
           setStep("app");
         }}
       />

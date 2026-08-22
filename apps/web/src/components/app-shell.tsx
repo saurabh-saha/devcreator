@@ -11,14 +11,16 @@ import { Projects } from "@/screens/projects";
 import { Knowledge } from "@/screens/knowledge";
 import { Analytics } from "@/screens/analytics";
 import { Integrations } from "@/screens/integrations";
+import { Profile } from "@/screens/profile";
+import { useSession, signOut } from "next-auth/react";
 
-type Screen = "dashboard" | "chat" | "insights" | "ideas" | "studio" | "campaigns" | "projects" | "knowledge" | "analytics" | "integrations";
+type Screen = "dashboard" | "chat" | "insights" | "ideas" | "studio" | "campaigns" | "projects" | "knowledge" | "analytics" | "integrations" | "profile";
 
 const TITLES: Record<Screen, string> = {
   dashboard: "Dashboard", chat: "Creator Brain", insights: "Insights",
   ideas: "Idea Mentor", studio: "Content Studio", campaigns: "Campaigns",
   projects: "Projects", knowledge: "Knowledge Base", analytics: "Analytics",
-  integrations: "Integrations",
+  integrations: "Integrations", profile: "Profile",
 };
 
 const NAV = [
@@ -41,11 +43,12 @@ const NAV_LIB = [
 
 function pathToScreen(path: string): Screen {
   const seg = path.replace(/^\//, "") || "dashboard";
-  const valid: Screen[] = ["dashboard","chat","insights","ideas","studio","campaigns","projects","knowledge","analytics","integrations"];
+  const valid: Screen[] = ["dashboard","chat","insights","ideas","studio","campaigns","projects","knowledge","analytics","integrations","profile"];
   return valid.includes(seg as Screen) ? (seg as Screen) : "dashboard";
 }
 
 export function AppShell() {
+  const { data: sessionData } = useSession();
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialScreen = params?.get("screen")
     ? (params.get("screen") as Screen)
@@ -126,12 +129,23 @@ export function AppShell() {
           <div className="sb-div" />
           <NavItem id="integrations" label="Integrations" icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="1.75"/><circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/><circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="1.75"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/></svg>} />
         </nav>
-        <div className="sb-user">
-          <div className="sb-av">S</div>
-          <div style={{ minWidth: 0 }}>
-            <div className="sb-uname">Saurabh Saha</div>
-            <div className="sb-uemail">ssaha@geoserves.com</div>
-          </div>
+        <div className="sb-user" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+          <button onClick={() => navigate("profile")} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "none", border: "none", textAlign: "left", padding: 0, minWidth: 0 }}>
+            {sessionData?.user?.image
+              ? <img src={sessionData.user.image} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+              : <div className="sb-av">{(sessionData?.user?.name ?? "U")[0].toUpperCase()}</div>
+            }
+            <div style={{ minWidth: 0 }}>
+              <div className="sb-uname">{sessionData?.user?.name ?? "—"}</div>
+              <div className="sb-uemail">{sessionData?.user?.email ?? ""}</div>
+            </div>
+          </button>
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            style={{ fontSize: 11, color: "var(--t3)", background: "none", border: "1px solid var(--bd)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", textAlign: "center" }}
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -187,6 +201,7 @@ export function AppShell() {
               {screen === "knowledge" && <Knowledge />}
               {screen === "analytics" && <Analytics navigate={navigate} />}
               {screen === "integrations" && <Integrations />}
+              {screen === "profile" && <Profile navigate={navigate} session={sessionData?.user ?? {}} />}
             </div>
           )}
         </div>
