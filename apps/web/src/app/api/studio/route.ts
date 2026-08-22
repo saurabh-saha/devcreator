@@ -1,4 +1,4 @@
-import { streamText, generateText } from "ai";
+import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { auth } from "@/auth";
@@ -29,23 +29,21 @@ FORMAT: ${FORMAT_INSTRUCTIONS[format] ?? FORMAT_INSTRUCTIONS.li}
 
 Output the content directly — no preamble.`;
 
-  // Try Gemini streaming first
-  try {
-    const result = streamText({ model: google("gemini-2.5-flash"), prompt, maxTokens: 2000 });
-    return result.toTextStreamResponse();
-  } catch (err: any) {
-    const msg = (err?.message ?? "").toLowerCase();
-    const isQuota = msg.includes("quota") || msg.includes("rate") || err?.status === 429 || err?.statusCode === 429;
-    if (!isQuota) throw err;
-  }
-
-  // Groq fallback — non-streaming (streamText errors surface too late to catch)
   const groq = process.env.GROQ_API_KEY ? createGroq({ apiKey: process.env.GROQ_API_KEY }) : null;
-  if (groq) {
+  const MODELS = [
+    { model: google("gemini-2.5-flash") },
+    ...(groq ? [{ model: groq("groq/compound") }] : []),
+  ];
+
+  for (const { model } of MODELS) {
     try {
-      const { text } = await generateText({ model: groq("groq/compound"), prompt, maxTokens: 2000 });
+      const { text } = await generateText({ model, prompt, maxTokens: 2000 });
       return new Response(text, { headers: { "Content-Type": "text/plain" } });
-    } catch {}
+    } catch (err: any) {
+      const msg = (err?.message ?? "").toLowerCase();
+      const isQuota = msg.includes("quota") || msg.includes("rate") || msg.includes("spend") || msg.includes("exhausted") || err?.status === 429 || err?.statusCode === 429;
+      if (!isQuota) throw err;
+    }
   }
 
   return Response.json({ error: "AI generation failed. Please retry." }, { status: 503 });

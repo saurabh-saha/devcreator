@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const TABS = [
   { id: "li", label: "LinkedIn" },
@@ -26,27 +26,103 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [draftSaved, setDraftSaved] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+  const [draftsLoaded, setDraftsLoaded] = useState(false);
+  const [savedDrafts, setSavedDrafts] = useState<{id: string; format: string; createdAt: string}[]>([]);
+  const [allDrafts, setAllDrafts] = useState<{ideaTitle: string; format: string; content: string; createdAt: string; ideaData?: any}[]>([]);
   const abortRefs = useRef<Record<string, AbortController>>({});
-  const firstGenDone = useRef(false);
+  const ideaRef = useRef(idea);
+  ideaRef.current = idea;
+
+  // Load existing drafts from DB on mount, only generate LinkedIn if none found
+  useEffect(() => {
+    if (!idea) return;
+    fetch("/api/drafts")
+      .then(r => r.json())
+      .then(data => {
+        const mine = (data.drafts ?? []).filter((d: any) => d.ideaTitle === idea.title);
+        if (mine.length > 0) {
+          const loaded: Record<string, string> = {};
+          mine.forEach((d: any) => { loaded[d.format] = d.content; });
+          setContent(loaded);
+          setSavedDrafts(mine.map((d: any) => ({ id: d.id, format: d.format, createdAt: d.createdAt })));
+          setDraftsLoaded(true);
+        } else {
+          setDraftsLoaded(true);
+          generate("li");
+        }
+      })
+      .catch(() => {
+        setDraftsLoaded(true);
+        generate("li");
+      });
+  }, [idea?.title]);
+
+  // Load all drafts when no idea selected
+  useEffect(() => {
+    if (idea) return;
+    fetch("/api/drafts")
+      .then(r => r.json())
+      .then(data => setAllDrafts((data.drafts ?? []).map((d: any) => ({ ...d, ideaData: d.ideaData ?? d.idea_data }))))
+      .catch(() => {});
+  }, [idea]);
 
   if (!idea) {
+    // Group by ideaTitle
+    const byIdea = allDrafts.reduce<Record<string, typeof allDrafts>>((acc, d) => {
+      if (!acc[d.ideaTitle]) acc[d.ideaTitle] = [];
+      acc[d.ideaTitle].push(d);
+      return acc;
+    }, {});
+    const ideaTitles = Object.keys(byIdea);
+
     return (
       <div className="page">
         <div className="ph">
           <div className="pt">Content Studio</div>
           <div className="ps">One idea, every format, in your voice.</div>
         </div>
-        <div className="card" style={{ textAlign: "center", padding: "48px 20px", color: "var(--t3)", fontSize: 13 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>✍️</div>
-          <div style={{ fontWeight: 600, color: "var(--t2)", marginBottom: 6 }}>No idea selected</div>
-          <div style={{ marginBottom: 20 }}>Go to Ideas, generate some, then click Create on the one you want to write.</div>
-          <button className="btn bp" onClick={() => navigate("ideas")}>Go to Ideas →</button>
-        </div>
+        {ideaTitles.length === 0 ? (
+          <div className="card" style={{ textAlign: "center", padding: "48px 20px", color: "var(--t3)", fontSize: 13 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>✍️</div>
+            <div style={{ fontWeight: 600, color: "var(--t2)", marginBottom: 6 }}>No idea selected</div>
+            <div style={{ marginBottom: 20 }}>Go to Ideas, generate some, then click Create on the one you want to write.</div>
+            <button className="btn bp" onClick={() => navigate("ideas")}>Go to Ideas →</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Saved drafts</div>
+            {ideaTitles.map(title => (
+              <div key={title} className="card" style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "var(--t1)", marginBottom: 10 }}>{title}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {byIdea[title].map(d => {
+                    const label = TABS.find(t => t.id === d.format)?.label ?? d.format;
+                    const age = new Date(d.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                    return (
+                      <button
+                        key={d.format}
+                        onClick={() => d.ideaData && navigate("studio", { idea: d.ideaData })}
+                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "var(--s2)", borderRadius: 20, fontSize: 12, border: "1px solid var(--bd)", cursor: d.ideaData ? "pointer" : "default", color: "inherit", opacity: d.ideaData ? 1 : 0.6 }}
+                      >
+                        <span style={{ color: "var(--t2)" }}>{label}</span>
+                        <span style={{ color: "var(--t3)" }}>{age}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <button className="btn bp" style={{ marginTop: 4 }} onClick={() => navigate("ideas")}>Go to Ideas →</button>
+          </div>
+        )}
       </div>
     );
   }
 
   async function generate(format: string) {
+    const currentIdea = ideaRef.current;
+    if (!currentIdea) return;
+
     abortRefs.current[format]?.abort();
     const ctrl = new AbortController();
     abortRefs.current[format] = ctrl;
@@ -58,7 +134,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
       const res = await fetch("/api/studio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, format }),
+        body: JSON.stringify({ idea: currentIdea, format }),
         signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error("Failed");
@@ -72,6 +148,20 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         text += decoder.decode(value, { stream: true });
         setContent(c => ({ ...c, [format]: text }));
       }
+      // Auto-save to DB after generation
+      if (text) {
+        fetch("/api/drafts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ideaTitle: currentIdea.title, format, content: text, idea: currentIdea }),
+        }).then(() => {
+          setSavedDrafts(prev => {
+            const exists = prev.find(d => d.format === format);
+            if (exists) return prev.map(d => d.format === format ? { ...d, createdAt: new Date().toISOString() } : d);
+            return [...prev, { id: "", format, createdAt: new Date().toISOString() }];
+          });
+        }).catch(() => {});
+      }
     } catch (e: any) {
       if (e.name !== "AbortError") {
         setContent(c => ({ ...c, [format]: "Generation failed. Try again." }));
@@ -82,13 +172,14 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   }
 
   async function saveDraft() {
-    if (!current || !idea) return;
+    const currentIdea = ideaRef.current;
+    if (!current || !currentIdea) return;
     setDraftSaving(true);
     try {
       await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ideaTitle: idea.title, format: activeTab, content: current }),
+        body: JSON.stringify({ ideaTitle: currentIdea.title, format: activeTab, content: current }),
       });
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2500);
@@ -99,13 +190,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
 
   function switchTab(id: string) {
     setActiveTab(id);
-    if (!content[id] && !loading[id]) generate(id);
-  }
-
-  // Auto-generate LinkedIn tab on first render
-  if (!firstGenDone.current) {
-    firstGenDone.current = true;
-    setTimeout(() => generate("li"), 0);
+    if (draftsLoaded && !content[id] && !loading[id]) generate(id);
   }
 
   const current = content[activeTab] ?? "";
@@ -162,6 +247,33 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
         <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>
       </div>
+
+      {savedDrafts.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Saved drafts</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {savedDrafts.map(d => {
+              const label = TABS.find(t => t.id === d.format)?.label ?? d.format;
+              const age = d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+              return (
+                <div key={d.format} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--s2)", borderRadius: 8, fontSize: 13 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontWeight: 500, color: "var(--t1)" }}>{label}</span>
+                    {age && <span style={{ fontSize: 11, color: "var(--t3)" }}>{age}</span>}
+                  </div>
+                  <button
+                    className="btn bs"
+                    style={{ fontSize: 11, padding: "3px 10px" }}
+                    onClick={() => { setActiveTab(d.format); }}
+                  >
+                    {activeTab === d.format ? "Viewing" : "View"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
