@@ -37,7 +37,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
   const [savedLoading, setSavedLoading] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(new Set());
 
-  useEffect(() => { generate(); }, []);
+  useEffect(() => { generate(); loadSaved(); }, []);
 
   useEffect(() => {
     if (tab === "saved") loadSaved();
@@ -210,11 +210,17 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
                 <div className="cair" style={{ fontSize: 12.5, marginBottom: 10, color: "var(--t2)" }}>{idea.rationale}</div>
                 <div className="idact">
                   <button className="btn bp" onClick={() => navigate("studio", { idea })}>Create</button>
-                  <button
-                    className="btn bs"
-                    disabled={saving.has(idx) || saved.has(idx)}
-                    onClick={() => saveIdea(idea, idx)}
-                  >{saved.has(idx) ? "Saved ✓" : saving.has(idx) ? "Saving…" : "Save"}</button>
+                  {(() => {
+                    const alreadySaved = saved.has(idx) || savedIdeas.some(s => s.title === idea.title);
+                    return (
+                      <button
+                        className="btn bs"
+                        disabled={saving.has(idx) || alreadySaved}
+                        onClick={() => saveIdea(idea, idx)}
+                        style={alreadySaved ? { opacity: 0.4, cursor: "default" } : {}}
+                      >{alreadySaved ? "Saved ✓" : saving.has(idx) ? "Saving…" : "Save"}</button>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
