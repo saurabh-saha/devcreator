@@ -1,14 +1,25 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 
-const TABS = [
-  { id: "li", label: "LinkedIn" },
-  { id: "yt", label: "YouTube" },
-  { id: "sh", label: "Short" },
-  { id: "ca", label: "Carousel" },
-  { id: "ar", label: "Article" },
-  { id: "th", label: "Thread" },
+// Article tab is shared across linkedin/medium/substack — one generation, copy to each
+const ALL_TABS = [
+  { id: "li", label: "LinkedIn Post", platform: "linkedin" },
+  { id: "ar", label: "Article", platform: "article", articlePlatforms: ["linkedin", "medium", "substack"] },
+  { id: "yt", label: "YouTube", platform: "youtube" },
+  { id: "sh", label: "YouTube Short", platform: "youtube" },
+  { id: "rm", label: "GitHub Project", platform: "github" },
+  { id: "th", label: "X Thread", platform: "x" },
 ];
+
+// Article tab appears if any of these are connected
+const ARTICLE_PLATFORMS = ["linkedin", "medium", "substack"];
+
+// Labels for article share destinations
+const ARTICLE_DEST_LABELS: Record<string, string> = {
+  linkedin: "LinkedIn Article",
+  medium: "Medium",
+  substack: "Substack",
+};
 
 type Idea = {
   title: string;
@@ -26,14 +37,25 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [draftSaved, setDraftSaved] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [draftsLoaded, setDraftsLoaded] = useState(false);
   const [savedDrafts, setSavedDrafts] = useState<{id: string; format: string; createdAt: string}[]>([]);
   const [allDrafts, setAllDrafts] = useState<{ideaTitle: string; format: string; content: string; createdAt: string; ideaData?: any}[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const abortRefs = useRef<Record<string, AbortController>>({});
   const ideaRef = useRef(idea);
   ideaRef.current = idea;
 
-  // Load existing drafts from DB on mount, only generate LinkedIn if none found
+  useEffect(() => {
+    fetch("/api/profile")
+      .then(r => r.json())
+      .then(data => {
+        const platforms = (data.accounts ?? []).map((a: any) => a.platform);
+        setConnectedPlatforms(platforms);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!idea) return;
     fetch("/api/drafts")
@@ -57,7 +79,6 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
       });
   }, [idea?.title]);
 
-  // Load all drafts when no idea selected
   useEffect(() => {
     if (idea) return;
     fetch("/api/drafts")
@@ -67,7 +88,6 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   }, [idea]);
 
   if (!idea) {
-    // Group by ideaTitle
     const byIdea = allDrafts.reduce<Record<string, typeof allDrafts>>((acc, d) => {
       if (!acc[d.ideaTitle]) acc[d.ideaTitle] = [];
       acc[d.ideaTitle].push(d);
@@ -96,7 +116,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
                 <div style={{ fontWeight: 600, fontSize: 13, color: "var(--t1)", marginBottom: 10 }}>{title}</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {byIdea[title].map(d => {
-                    const label = TABS.find(t => t.id === d.format)?.label ?? d.format;
+                    const label = ALL_TABS.find(t => t.id === d.format)?.label ?? d.format;
                     const age = new Date(d.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
                     return (
                       <button
@@ -148,7 +168,6 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         text += decoder.decode(value, { stream: true });
         setContent(c => ({ ...c, [format]: text }));
       }
-      // Auto-save to DB after generation
       if (text) {
         fetch("/api/drafts", {
           method: "POST",
@@ -193,8 +212,28 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
     if (draftsLoaded && !content[id] && !loading[id]) generate(id);
   }
 
+  function copyFor(dest: string) {
+    navigator.clipboard.writeText(current).then(() => {
+      setCopied(dest);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  // Derive visible tabs: Article tab shows if any article platform is connected
+  const hasArticlePlatform = connectedPlatforms.some(p => ARTICLE_PLATFORMS.includes(p));
+  const TABS = connectedPlatforms.length > 0
+    ? ALL_TABS.filter(t => {
+        if (t.id === "ar") return hasArticlePlatform;
+        return connectedPlatforms.includes(t.platform);
+      })
+    : ALL_TABS;
+
+  // Article destinations for the current user
+  const articleDests = connectedPlatforms.filter(p => ARTICLE_PLATFORMS.includes(p));
+
   const current = content[activeTab] ?? "";
   const isLoading = loading[activeTab] ?? false;
+  const isArticleTab = activeTab === "ar";
 
   return (
     <div className="page">
@@ -239,21 +278,46 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         <div className="stmi"><div className="stml">Audience</div><div className="stmv">{idea.audience}</div></div>
       </div>
 
-      <div className="stact">
-        <button className="btn bp" disabled={!current || isLoading} onClick={() => navigator.clipboard.writeText(current)}>Copy</button>
-        <button className="btn bs" disabled={!current || isLoading || draftSaving} onClick={saveDraft}>
-          {draftSaved ? "Saved ✓" : draftSaving ? "Saving…" : "Save draft"}
-        </button>
-        <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
-        <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>
-      </div>
+      {isArticleTab && current && !isLoading && articleDests.length > 0 ? (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Copy to publish on</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {articleDests.map(dest => (
+              <button
+                key={dest}
+                className="btn bs"
+                onClick={() => copyFor(dest)}
+                style={{ fontSize: 12 }}
+              >
+                {copied === dest ? "Copied ✓" : `Copy for ${ARTICLE_DEST_LABELS[dest] ?? dest}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="stact">
+          <button className="btn bp" disabled={!current || isLoading} onClick={() => navigator.clipboard.writeText(current)}>Copy</button>
+          <button className="btn bs" disabled={!current || isLoading || draftSaving} onClick={saveDraft}>
+            {draftSaved ? "Saved ✓" : draftSaving ? "Saving…" : "Save draft"}
+          </button>
+          <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
+          <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>
+        </div>
+      )}
+
+      {isArticleTab && current && !isLoading && (
+        <div className="stact" style={{ marginTop: 8 }}>
+          <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
+          <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>
+        </div>
+      )}
 
       {savedDrafts.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Saved drafts</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {savedDrafts.map(d => {
-              const label = TABS.find(t => t.id === d.format)?.label ?? d.format;
+              const label = ALL_TABS.find(t => t.id === d.format)?.label ?? d.format;
               const age = d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
               return (
                 <div key={d.format} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "var(--s2)", borderRadius: 8, fontSize: 13 }}>

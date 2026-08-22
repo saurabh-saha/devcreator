@@ -7,8 +7,8 @@ const FORMAT_INSTRUCTIONS: Record<string, string> = {
   li: `Write a LinkedIn post. Short punchy paragraphs (1-3 lines max). Use → or — for lists. End with 3-5 hashtags. No headers. Hook must grab on first line. 150-300 words.`,
   yt: `Write a YouTube video script. Sections: [HOOK 0:00-0:15], labeled sections with timestamps, [OUTRO]. Include b-roll notes in brackets. 600-900 words. Conversational tone.`,
   sh: `Write a YouTube Short / Reel script. Max 60 seconds. Sections: [0:00-0:03 HOOK], [0:03-0:45 CONTENT], [0:45-0:58 CTA]. Fast-paced, visual. 150-200 words.`,
-  ca: `Write a LinkedIn carousel. 8-10 slides. Format: "Slide N: TITLE\\n[content/visual note]". Cover slide must hook. Last slide = save-worthy insight or CTA.`,
-  ar: `Write a technical blog article. Use ## headers. Include code examples in backtick fences where relevant. Practical, opinionated, grounded in real experience. 600-900 words.`,
+  ar: `Write a long-form technical article. Use ## headers. Include code examples in backtick fences where relevant. Practical, opinionated, grounded in real experience. 600-900 words. Works for LinkedIn Articles, Medium, and Substack.`,
+  rm: `Write a GitHub README.md. Sections: project name + one-line description, ## What it does (2-3 sentences), ## Why it matters (the insight behind it), ## Tech stack (bullet list), ## Quick start (code block with install/run commands), ## Contributing (one line). Markdown formatted. Concise and developer-friendly.`,
   th: `Write a Twitter/X thread. Number tweets 1/, 2/, etc. Max 280 chars each. 8-12 tweets. Hook tweet must standalone. End with RT/save CTA.`,
 };
 
