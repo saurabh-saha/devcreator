@@ -34,7 +34,6 @@ function ago(iso: string) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-const CLAP_CACHE_KEY = "dc_medium_claps";
 
 function fetchViaMediumExtension(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -126,7 +125,6 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
   useEffect(() => {
     let cleanup: (() => void) | undefined;
 
-    // Load claps from DB (authoritative), fall back to localStorage cache
     fetch("/api/claps")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -134,20 +132,9 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
           const map: Record<string, number> = {};
           for (const { articleUrl, clapCount } of data.claps) map[articleUrl] = clapCount;
           setClapMap(map);
-          localStorage.setItem(CLAP_CACHE_KEY, JSON.stringify(map));
-        } else {
-          try {
-            const cached = localStorage.getItem(CLAP_CACHE_KEY);
-            if (cached) setClapMap(JSON.parse(cached));
-          } catch {}
         }
       })
-      .catch(() => {
-        try {
-          const cached = localStorage.getItem(CLAP_CACHE_KEY);
-          if (cached) setClapMap(JSON.parse(cached));
-        } catch {}
-      });
+      .catch(() => {});
 
     // Extension sets window.__dc_extension = true at document_start (before React mounts)
     if ((window as any).__dc_extension) {
@@ -198,7 +185,6 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
         setSyncMsg({ text: "No articles found — are you logged into Medium?", ok: false });
       } else {
         setClapMap(map);
-        localStorage.setItem(CLAP_CACHE_KEY, JSON.stringify(map));
         // Persist to DB
         fetch("/api/claps", {
           method: "POST",
@@ -393,7 +379,6 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
                           const count = post.virtuals?.totalClapCount ?? post.clapCount ?? 0;
                           const updated = { ...clapMap, [p.url]: count };
                           setClapMap(updated);
-                          localStorage.setItem(CLAP_CACHE_KEY, JSON.stringify(updated));
                           fetch("/api/claps", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },

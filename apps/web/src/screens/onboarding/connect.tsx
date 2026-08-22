@@ -13,15 +13,7 @@ const PLATFORMS = [
 const REAL_PLATFORMS = new Set(["github", "medium", "substack", "linkedin"]);
 
 export function ConnectScreen({ onContinue }: { onContinue: (connected: string[]) => void }) {
-  const [connected, setConnected] = useState<string[]>(() => {
-    try {
-      const saved: string[] = JSON.parse(localStorage.getItem("ob_connected") ?? "[]");
-      // Strip any dummy-connected platforms — only keep ones with real integrations
-      const real = saved.filter(id => REAL_PLATFORMS.has(id));
-      if (real.length !== saved.length) localStorage.setItem("ob_connected", JSON.stringify(real));
-      return real;
-    } catch { return []; }
-  });
+  const [connected, setConnected] = useState<string[]>([]);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [usernameModal, setUsernameModal] = useState<{ platformId: string; label: string } | null>(null);
   const [usernameInput, setUsernameInput] = useState("");
@@ -31,23 +23,13 @@ export function ConnectScreen({ onContinue }: { onContinue: (connected: string[]
     const params = new URLSearchParams(window.location.search);
     const justConnected = params.get("connected");
     if (justConnected) {
-      setConnected(prev => {
-        if (prev.includes(justConnected)) return prev;
-        const next = [...prev, justConnected];
-        localStorage.setItem("ob_connected", JSON.stringify(next));
-        return next;
-      });
+      setConnected(prev => prev.includes(justConnected) ? prev : [...prev, justConnected]);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
 
   function markConnected(platformId: string) {
-    setConnected(prev => {
-      if (prev.includes(platformId)) return prev;
-      const next = [...prev, platformId];
-      localStorage.setItem("ob_connected", JSON.stringify(next));
-      return next;
-    });
+    setConnected(prev => prev.includes(platformId) ? prev : [...prev, platformId]);
   }
 
   async function connect(platformId: string, type: string, oauthUrl: string | null) {

@@ -4,7 +4,7 @@ import { useState } from "react";
 const TOPIC_OPTIONS = ["AI", "Machine Learning", "Software Engineering", "Backend", "Startups", "DevOps", "System Design", "Open Source", "Career", "Leadership"];
 const AUDIENCE_OPTIONS = ["Developers", "AI Engineers", "Engineering Managers", "Technical Founders", "Backend Engineers", "Startup CTOs", "Students"];
 
-export function ProfileScreen({ name, onContinue }: { name: string; onContinue: (data: { topics: string[]; audiences: string[] }) => void }) {
+export function ProfileScreen({ name, onContinue }: { name: string; onContinue: () => void }) {
   const [topics, setTopics] = useState<string[]>(["AI", "Software Engineering"]);
   const [audiences, setAudiences] = useState<string[]>(["Developers", "AI Engineers"]);
 
@@ -48,7 +48,7 @@ export function ProfileScreen({ name, onContinue }: { name: string; onContinue: 
 
         <button
           className="btn bp ob-cta"
-          onClick={() => onContinue({ topics, audiences })}
+          onClick={() => onContinue()}
           disabled={topics.length === 0}
         >
           Continue →
