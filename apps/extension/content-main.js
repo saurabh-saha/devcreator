@@ -7,8 +7,18 @@ window.addEventListener("dc:fetch-medium", (e) => {
   window.postMessage({ type: "dc:fetch-medium", url: e.detail.url, requestId: e.detail.requestId }, "*");
 });
 
-// Forward responses from isolated world back to page as CustomEvent
+window.addEventListener("dc:fetch-linkedin", (e) => {
+  console.log("[dc] forwarding dc:fetch-linkedin", e.detail);
+  window.postMessage({ type: "dc:fetch-linkedin", handle: e.detail.handle, requestId: e.detail.requestId }, "*");
+});
+
+// Forward responses from isolated world back to page as CustomEvents
 window.addEventListener("message", (e) => {
-  if (e.source !== window || e.data?.type !== "dc:medium-data") return;
-  window.dispatchEvent(new CustomEvent("dc:medium-data", { detail: e.data }));
+  if (e.source !== window) return;
+  if (e.data?.type === "dc:medium-data") {
+    window.dispatchEvent(new CustomEvent("dc:medium-data", { detail: e.data }));
+  }
+  if (e.data?.type === "dc:linkedin-data") {
+    window.dispatchEvent(new CustomEvent("dc:linkedin-data", { detail: e.data }));
+  }
 });

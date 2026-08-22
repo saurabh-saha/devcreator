@@ -211,6 +211,23 @@ export const insights = pgTable(
   (t) => [index("insights_user_idx").on(t.userId)]
 );
 
+export const linkedinPosts = pgTable(
+  "linkedin_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    postUrl: text("post_url").notNull(),
+    snippet: text("snippet").notNull().default(""),
+    impressions: integer("impressions").notNull().default(0),
+    likes: integer("likes").notNull().default(0),
+    comments: integer("comments").notNull().default(0),
+    reposts: integer("reposts").notNull().default(0),
+    postType: text("post_type").notNull().default("post"),
+    syncedAt: timestamp("synced_at").defaultNow().notNull(),
+  },
+  (t) => [index("linkedin_posts_user_idx").on(t.userId)]
+);
+
 export const mediumClaps = pgTable(
   "medium_claps",
   {

@@ -6,12 +6,14 @@
   "host_permissions": [
     "https://medium.com/*",
     "https://*.medium.com/*",
+    "https://www.linkedin.com/*",
     "http://localhost:3001/*",
     "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
   },
+  "permissions": ["tabs", "scripting"],
   "content_scripts": [
     {
       "matches": [

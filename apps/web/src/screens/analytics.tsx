@@ -5,8 +5,24 @@ import { BrainMark } from "@/components/brain-mark";
 type MediumPost   = { title: string; url: string; publishedAt: string };
 type SubstackPost = { title: string; url: string; comments: number; likes: number; publishedAt: string; audience: string };
 type GitHubRepo   = { name: string; url: string; stars: number; forks: number; watchers: number; language: string; updatedAt: string };
+type LinkedInPost = { postUrl: string; snippet: string; impressions: number; likes: number; comments: number; reposts: number; postType: string; syncedAt: string };
 
 function fmt(n: number) { return n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n); }
+
+function SkeletonRows({ count = 4, label }: { count?: number; label: string }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="crow" style={{ borderBottom: i < count - 1 ? "1px solid var(--bd)" : "none" }}>
+          <span className="cr-n"><span className="skel skel-row" style={{ width: 14 }} /></span>
+          <span className="cr-t"><span className="skel skel-row" style={{ width: `${55 + (i * 17) % 35}%` }} /></span>
+          <span className="cr-p"><span className="skel skel-row" style={{ width: 48 }} /></span>
+          <span className="cr-v"><span className="skel skel-row" style={{ width: 52 }} /></span>
+        </div>
+      ))}
+    </>
+  );
+}
 function ago(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -42,6 +58,55 @@ function fetchViaMediumExtension(url: string): Promise<string> {
   });
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "7px 16px 5px", fontSize: 10, fontWeight: 600, color: "var(--t3)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--mono)", borderBottom: "1px solid var(--bd)" }}>
+      {children}
+    </div>
+  );
+}
+
+function LinkedInList({ posts, fmt }: { posts: LinkedInPost[]; fmt: (n: number) => string }) {
+  const regularPosts = posts.filter(p => p.postType !== "article");
+  const articles = posts.filter(p => p.postType === "article");
+
+  const renderRow = (p: LinkedInPost, i: number, total: number) => (
+    <div key={p.postUrl || p.snippet.slice(0, 60) || String(i)} className="crow" style={{ borderBottom: i < total - 1 ? "1px solid var(--bd)" : "none" }}>
+      <span className="cr-n">{i + 1}</span>
+      <span className="cr-t">
+        {p.postUrl ? (
+          <a href={p.postUrl} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none" }}>
+            {p.snippet || "Post"}
+          </a>
+        ) : (
+          <span style={{ color: "var(--t1)" }}>{p.snippet || "Post"}</span>
+        )}
+      </span>
+      <span className="cr-p" style={{ color: "var(--t3)", fontSize: 11 }}>{p.impressions ? `${fmt(p.impressions)} views` : ""}</span>
+      <span className="cr-v" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+        👍 {fmt(p.likes)} · 💬 {p.comments}
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      {regularPosts.length > 0 && (
+        <>
+          <SectionLabel>Posts · {regularPosts.length}</SectionLabel>
+          {regularPosts.map((p, i) => renderRow(p, i, regularPosts.length))}
+        </>
+      )}
+      {articles.length > 0 && (
+        <>
+          <SectionLabel>Articles · {articles.length}</SectionLabel>
+          {articles.map((p, i) => renderRow(p, i, articles.length))}
+        </>
+      )}
+    </>
+  );
+}
+
 export function Analytics({ navigate }: { navigate: (s: string) => void }) {
   const [medium, setMedium]         = useState<MediumPost[]>([]);
   const [substack, setSubstack]     = useState<SubstackPost[]>([]);
@@ -53,6 +118,10 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
   const [syncing, setSyncing]       = useState(false);
   const [syncMsg, setSyncMsg]       = useState<{ text: string; ok: boolean } | null>(null);
   const [fetchingUrl, setFetchingUrl] = useState<string | null>(null);
+  const [linkedinPosts, setLinkedinPosts] = useState<LinkedInPost[]>([]);
+  const [linkedinHandle, setLinkedinHandle] = useState<string | null>(null);
+  const [syncingLinkedin, setSyncingLinkedin] = useState(false);
+  const [linkedinMsg, setLinkedinMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -97,9 +166,15 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
         setSubstack(d.substack ?? []);
         setGithub(d.github ?? []);
         setMediumHandle(d.mediumHandle ?? null);
+        setLinkedinHandle(d.linkedinHandle ?? null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    fetch("/api/linkedin")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.posts?.length) setLinkedinPosts(d.posts); })
+      .catch(() => {});
 
     return () => cleanup?.();
   }, []);
@@ -141,6 +216,48 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
       }
     }
     setSyncing(false);
+  }
+
+  async function syncLinkedin() {
+    console.log("[linkedin] syncLinkedin called, handle:", linkedinHandle, "extInstalled:", extInstalled);
+    if (!linkedinHandle) { console.warn("[linkedin] no handle, aborting"); return; }
+    setSyncingLinkedin(true);
+    setLinkedinMsg(null);
+    try {
+      const result = await new Promise<any>((resolve, reject) => {
+        const requestId = Math.random().toString(36).slice(2);
+        const timer = setTimeout(() => {
+          window.removeEventListener("dc:linkedin-data", handler as EventListener);
+          reject(new Error("timeout"));
+        }, 60000);
+        function handler(e: Event) {
+          const detail = (e as CustomEvent).detail;
+          if (detail.requestId !== requestId) return;
+          clearTimeout(timer);
+          window.removeEventListener("dc:linkedin-data", handler as EventListener);
+          if (detail.ok) resolve(detail);
+          else reject(new Error(detail.error ?? "fetch failed"));
+        }
+        window.addEventListener("dc:linkedin-data", handler as EventListener);
+        window.dispatchEvent(new CustomEvent("dc:fetch-linkedin", { detail: { handle: linkedinHandle, requestId } }));
+      });
+
+      const posts = result.posts ?? [];
+      if (!posts.length) {
+        setLinkedinMsg({ text: "No posts found — are you logged into LinkedIn?", ok: false });
+      } else {
+        setLinkedinPosts(posts);
+        fetch("/api/linkedin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ posts }),
+        }).catch(() => {});
+        setLinkedinMsg({ text: `Synced ${posts.length} posts`, ok: true });
+      }
+    } catch (err: any) {
+      setLinkedinMsg({ text: err?.message === "timeout" ? "Timed out — make sure you're logged into LinkedIn" : "Sync failed", ok: false });
+    }
+    setSyncingLinkedin(false);
   }
 
   const totalStars    = github.reduce((s, r) => s + r.stars, 0);
@@ -187,13 +304,13 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
       </div>
 
       {/* GitHub repos */}
-      {github.length > 0 && (
+      {(loading || github.length > 0) && (
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--bd)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="lbl" style={{ marginBottom: 0 }}>GitHub Repositories</div>
             <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: "var(--mono)" }}>stars · forks</span>
           </div>
-          {github.map((r, i) => (
+          {loading ? <SkeletonRows count={3} label="github" /> : github.map((r, i) => (
             <div key={r.name} className="crow" style={{ borderBottom: i < github.length - 1 ? "1px solid var(--bd)" : "none" }}>
               <span className="cr-n">{i + 1}</span>
               <span className="cr-t">
@@ -210,7 +327,7 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
       )}
 
       {/* Medium articles */}
-      {medium.length > 0 && (
+      {(loading || medium.length > 0) && (
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--bd)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="lbl" style={{ marginBottom: 0 }}>Medium Articles</div>
@@ -248,7 +365,7 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
             </div>
           )}
 
-          {medium.map((p, i) => {
+          {loading ? <SkeletonRows count={4} label="medium" /> : medium.map((p, i) => {
             const claps = getClaps(p.url);
             const slug = p.url.split("/").pop() ?? "";
             return (
@@ -338,13 +455,13 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
       )}
 
       {/* Substack posts */}
-      {substack.length > 0 && (
+      {(loading || substack.length > 0) && (
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--bd)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="lbl" style={{ marginBottom: 0 }}>Substack Newsletter</div>
             <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: "var(--mono)" }}>comments · likes</span>
           </div>
-          {substack.map((p, i) => (
+          {loading ? <SkeletonRows count={3} label="substack" /> : substack.map((p, i) => (
             <div key={p.url} className="crow" style={{ borderBottom: i < substack.length - 1 ? "1px solid var(--bd)" : "none" }}>
               <span className="cr-n">{i + 1}</span>
               <span className="cr-t">
@@ -356,6 +473,47 @@ export function Analytics({ navigate }: { navigate: (s: string) => void }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* LinkedIn posts */}
+      {(linkedinHandle || linkedinPosts.length > 0) && (
+        <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--bd)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="lbl" style={{ marginBottom: 0 }}>LinkedIn Posts</div>
+            {extInstalled ? (
+              <button
+                className="btn bg-btn"
+                style={{ fontSize: 11, padding: "4px 10px", display: "flex", alignItems: "center", gap: 5 }}
+                onClick={syncLinkedin}
+                disabled={syncingLinkedin}
+              >
+                {syncingLinkedin
+                  ? <><span className="ob-spinner" style={{ width: 9, height: 9 }} /> Syncing…</>
+                  : <>🔗 Sync LinkedIn</>}
+              </button>
+            ) : (
+              <span style={{ fontSize: 11, color: "var(--t3)", fontFamily: "var(--mono)" }}>impressions · likes</span>
+            )}
+          </div>
+
+          {linkedinMsg && (
+            <div style={{
+              padding: "8px 16px", fontSize: 12,
+              color: linkedinMsg.ok ? "var(--ok, #4caf50)" : "var(--err, #e55)",
+              borderBottom: "1px solid var(--bd)",
+            }}>
+              {linkedinMsg.ok ? "✓ " : "✗ "}{linkedinMsg.text}
+            </div>
+          )}
+
+          {syncingLinkedin ? <SkeletonRows count={6} label="linkedin" /> : linkedinPosts.length > 0 ? (
+            <LinkedInList posts={linkedinPosts} fmt={fmt} />
+          ) : (
+            <div style={{ padding: "20px 16px", color: "var(--t3)", fontSize: 12, textAlign: "center" }}>
+              {extInstalled ? "Click Sync LinkedIn to fetch your posts" : "Install the extension to sync LinkedIn posts"}
+            </div>
+          )}
         </div>
       )}
 

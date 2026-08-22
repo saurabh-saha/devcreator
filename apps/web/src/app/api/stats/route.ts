@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
       substack,
       github,
       mediumHandle: byPlatform.medium?.handle ?? null,
+      linkedinHandle: byPlatform.linkedin?.handle ?? null,
     });
   } catch (err) {
     console.error("[/api/stats error]", err);
