@@ -43,7 +43,8 @@ export function Ideas({ navigate }: { navigate: (s: string) => void }) {
     }
   }
 
-  const filtered = filter === "All" ? ideas : ideas.filter(i => i.impact === filter);
+  const filtered = (filter === "All" ? ideas : ideas.filter(i => i.impact === filter))
+    .slice().sort((a, b) => b.score - a.score);
 
   return (
     <div className="page">
