@@ -1,5 +1,6 @@
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { auth } from "@/auth";
 
 const FORMAT_INSTRUCTIONS: Record<string, string> = {
@@ -18,20 +19,34 @@ export async function POST(req: Request) {
   const { idea, format } = await req.json();
   if (!idea || !format) return Response.json({ error: "Missing idea or format" }, { status: 400 });
 
-  const result = streamText({
-    model: google("gemini-2.5-flash"),
-    prompt: `You are writing content for Saurabh Saha, a developer-creator. His voice: direct, opinionated, grounded in real production experience. No fluff. No generic advice. Write from first-person perspective.
+  const prompt = `You are writing content for a developer-creator. Voice: direct, opinionated, grounded in real production experience. No fluff. No generic advice. First-person perspective.
 
 IDEA TITLE: ${idea.title}
-OPENING HOOK: ${idea.hook}
-RATIONALE: ${idea.rationale}
-TARGET AUDIENCE: ${idea.audience}
+HOOK: ${idea.hook}
+AUDIENCE: ${idea.audience}
 
-FORMAT INSTRUCTIONS: ${FORMAT_INSTRUCTIONS[format] ?? FORMAT_INSTRUCTIONS.li}
+FORMAT: ${FORMAT_INSTRUCTIONS[format] ?? FORMAT_INSTRUCTIONS.li}
 
-Write the full content now. Output the content directly — no preamble, no "Here is your post:".`,
-    maxTokens: 2000,
-  });
+Output the content directly — no preamble.`;
 
-  return result.toTextStreamResponse();
+  // Try Gemini streaming first
+  try {
+    const result = streamText({ model: google("gemini-2.5-flash"), prompt, maxTokens: 2000 });
+    return result.toTextStreamResponse();
+  } catch (err: any) {
+    const msg = (err?.message ?? "").toLowerCase();
+    const isQuota = msg.includes("quota") || msg.includes("rate") || err?.status === 429 || err?.statusCode === 429;
+    if (!isQuota) throw err;
+  }
+
+  // Groq fallback — non-streaming (streamText errors surface too late to catch)
+  const groq = process.env.GROQ_API_KEY ? createGroq({ apiKey: process.env.GROQ_API_KEY }) : null;
+  if (groq) {
+    try {
+      const { text } = await generateText({ model: groq("groq/compound"), prompt, maxTokens: 2000 });
+      return new Response(text, { headers: { "Content-Type": "text/plain" } });
+    } catch {}
+  }
+
+  return Response.json({ error: "AI generation failed. Please retry." }, { status: 503 });
 }

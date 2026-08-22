@@ -25,7 +25,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
   const [topic, setTopic] = useState("Agentic AI");
   const [goal, setGoal] = useState("Build authority");
   const [platform, setPlatform] = useState("All platforms");
-  const [count, setCount] = useState("10");
+  const [count, setCount] = useState("3");
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("All");
@@ -52,7 +52,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audience, topic, goal, platform, count: parseInt(count) }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error ?? "Generation failed"); }
       const data = await res.json();
       setIdeas(data.ideas ?? []);
     } catch (e) {
@@ -160,9 +160,8 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
               </div>
               <div className="fg"><div className="fl">Count</div>
                 <select className="fsel" value={count} onChange={e => setCount(e.target.value)}>
+                  <option value="3">3 ideas</option>
                   <option value="5">5 ideas</option>
-                  <option value="10">10 ideas</option>
-                  <option value="20">20 ideas</option>
                 </select>
               </div>
               <button className="btn bp" style={{ width: "100%" }} onClick={generate} disabled={loading}>

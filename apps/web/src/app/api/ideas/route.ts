@@ -40,32 +40,22 @@ async function ensureTable() {
   globalForDb._ideasMigrated = true;
 }
 
+const MAX_IDEAS = 3;
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 const IdeaSchema = z.object({
   ideas: z.array(z.object({
     title: z.string(),
-    hook: z.string().describe("The actual opening line of the content, in quotes"),
-    score: z.number().int().min(1).max(100).describe("Predicted performance score 1-100 vs creator's average. Must be a whole integer."),
+    hook: z.string(),
+    score: z.number().int().min(1).max(100),
     impact: z.enum(["High", "Medium", "Low"]),
-    rationale: z.string().describe("Why this will perform well, based on creator's history"),
-    formats: z.array(z.string()).describe("Recommended platforms/formats e.g. LinkedIn, YouTube Short, Carousel"),
-    audience: z.string().describe("Primary target segment"),
+    rationale: z.string(),
+    formats: z.array(z.string()),
+    audience: z.string(),
   })),
 });
 
-const SYSTEM = `You are an expert content strategist for Saurabh Saha, a developer-creator.
-
-Saurabh's expertise: AI agents, backend engineering, Kafka/streaming, system architecture, engineering leadership.
-Audience: Software engineers (67%), engineering managers (18%), technical founders (9%).
-
-What performs well for Saurabh:
-- Contrarian takes grounded in production experience
-- Visual analogies (Kafka Consumer Groups with email inbox = 4.2× average)
-- First-line hooks that are specific, concrete, and relatable
-- Practical over theoretical — shows working code or real decisions
-- Personal experience over generic advice
-
-Generate ideas that are specific, grounded in his expertise, and likely to outperform his average.`;
+const SYSTEM = `You are a content strategist for a developer-creator. Generate content ideas that are specific, opinionated, and grounded in real technical experience. Hooks must be concrete and punchy.`;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -95,22 +85,42 @@ export async function POST(req: Request) {
   }
 
   // Generate fresh
-  const prompt = `Generate ${count ?? 10} content ideas for Saurabh.
-Audience: ${audience ?? "AI Engineers"}
-Topic focus: ${topic ?? "Agentic AI"}
-Goal: ${goal ?? "Build authority"}
-Platform: ${platform ?? "All platforms"}
+  const n = Math.min(count ?? MAX_IDEAS, MAX_IDEAS);
+  const prompt = `Generate ${n} ideas. Audience: ${audience}. Topic: ${topic}. Goal: ${goal}. Platform: ${platform}. Hooks must be punchy and specific.`;
 
-Make the hooks punchy, specific, and original. Score based on predicted performance vs his historical average.`;
+  const MODELS = [
+    { model: google("gemini-2.5-flash"), maxTokens: 3000 },
+  ];
 
-  const { object } = await generateObject({
-    model: google("gemini-2.5-flash"),
-    mode: "json",
-    system: SYSTEM + "\n\nIMPORTANT: Output ONLY valid JSON. No markdown, no backticks, no code fences. All string values must use standard double quotes only.",
-    prompt,
-    schema: IdeaSchema,
-    maxTokens: 8000,
-  });
+  function quotaError(err: any) {
+    const msg = (err?.message ?? "").toLowerCase();
+    return msg.includes("quota") || msg.includes("rate") || err?.status === 429 || err?.statusCode === 429;
+  }
+
+  function resetMessage() {
+    const nowPT = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+    const midnight = new Date(nowPT);
+    midnight.setDate(midnight.getDate() + 1);
+    midnight.setHours(0, 0, 0, 0);
+    const diffMs = midnight.getTime() - nowPT.getTime();
+    const hrs = Math.floor(diffMs / 3600000);
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    return `AI quota exhausted. Resets in ${hrs}h ${mins}m.`;
+  }
+
+  let object: z.infer<typeof IdeaSchema> | null = null;
+  for (const { model, maxTokens } of MODELS) {
+    try {
+      const result = await generateObject({ model, system: SYSTEM, prompt, schema: IdeaSchema, maxTokens });
+      object = result.object;
+      break;
+    } catch (err: any) {
+      const msg = (err?.message ?? "").toLowerCase();
+      if (quotaError(err) || msg.includes("decommissioned")) continue;
+      throw err;
+    }
+  }
+  if (!object) return Response.json({ error: resetMessage() }, { status: 429 });
 
   // Store in cache
   if (session?.user?.email) {
