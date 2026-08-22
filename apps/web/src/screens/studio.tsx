@@ -273,7 +273,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
       </div>
 
       <div className="stmeta">
-        <div className="stmi"><div className="stml">Score</div><div className="stmv">{idea.score}/100</div></div>
+        <div className="stmi"><div className="stml">Score</div><div className="stmv">{idea.score}/10</div></div>
         <div className="stmi"><div className="stml">Impact</div><div className="stmv" style={{ color: idea.impact === "High" ? "var(--gn)" : idea.impact === "Medium" ? "var(--am)" : "var(--t3)" }}>{idea.impact}</div></div>
         <div className="stmi"><div className="stml">Audience</div><div className="stmv">{idea.audience}</div></div>
       </div>
