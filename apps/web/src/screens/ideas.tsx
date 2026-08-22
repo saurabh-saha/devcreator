@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Idea {
   score: number;
@@ -23,6 +23,8 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("All");
   const [error, setError] = useState("");
+
+  useEffect(() => { generate(); }, []);
 
   async function generate() {
     setLoading(true);
