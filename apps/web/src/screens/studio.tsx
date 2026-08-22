@@ -24,6 +24,8 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   const [activeTab, setActiveTab] = useState("li");
   const [content, setContent] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
   const abortRefs = useRef<Record<string, AbortController>>({});
   const firstGenDone = useRef(false);
 
@@ -76,6 +78,22 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
       }
     } finally {
       setLoading(l => ({ ...l, [format]: false }));
+    }
+  }
+
+  async function saveDraft() {
+    if (!current || !idea) return;
+    setDraftSaving(true);
+    try {
+      await fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaTitle: idea.title, format: activeTab, content: current }),
+      });
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2500);
+    } finally {
+      setDraftSaving(false);
     }
   }
 
@@ -138,6 +156,9 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
 
       <div className="stact">
         <button className="btn bp" disabled={!current || isLoading} onClick={() => navigator.clipboard.writeText(current)}>Copy</button>
+        <button className="btn bs" disabled={!current || isLoading || draftSaving} onClick={saveDraft}>
+          {draftSaved ? "Saved ✓" : draftSaving ? "Saving…" : "Save draft"}
+        </button>
         <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
         <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>
       </div>
