@@ -13,7 +13,7 @@ interface Idea {
 
 const IMP: Record<string, string> = { High: "tg", Medium: "ta", Low: "tr" };
 
-export function Ideas({ navigate }: { navigate: (s: string) => void }) {
+export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void }) {
   const [audience, setAudience] = useState("AI Engineers");
   const [topic, setTopic] = useState("Agentic AI");
   const [goal, setGoal] = useState("Build authority");
@@ -131,7 +131,7 @@ export function Ideas({ navigate }: { navigate: (s: string) => void }) {
               </div>
               <div className="cair" style={{ fontSize: 12.5, marginBottom: 10, color: "var(--t2)" }}>{idea.rationale}</div>
               <div className="idact">
-                <button className="btn bp" onClick={() => navigate("studio")}>Create</button>
+                <button className="btn bp" onClick={() => navigate("studio", { idea })}>Create</button>
                 <button className="btn bs">Save</button>
               </div>
             </div>

@@ -54,6 +54,7 @@ export function AppShell() {
     ? (params.get("screen") as Screen)
     : (typeof window !== "undefined" ? pathToScreen(window.location.pathname) : "dashboard");
   const [screen, setScreen] = useState<Screen>(initialScreen);
+  const [studioIdea, setStudioIdea] = useState<Record<string, any> | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -89,8 +90,9 @@ export function AppShell() {
     window.history.replaceState({}, "", window.location.pathname);
   }
 
-  function navigate(s: string) {
+  function navigate(s: string, state?: Record<string, any>) {
     const next = s as Screen;
+    if (next === "studio" && state?.idea) setStudioIdea(state.idea);
     setScreen(next);
     const path = next === "dashboard" ? "/" : `/${next}`;
     window.history.pushState({}, "", path);
@@ -195,7 +197,7 @@ export function AppShell() {
               {screen === "dashboard" && <Dashboard navigate={navigate} />}
               {screen === "insights" && <Insights navigate={navigate} />}
               {screen === "ideas" && <Ideas navigate={navigate} />}
-              {screen === "studio" && <Studio />}
+              {screen === "studio" && <Studio idea={studioIdea as any} navigate={navigate} />}
               {screen === "campaigns" && <Campaigns navigate={navigate} />}
               {screen === "projects" && <Projects />}
               {screen === "knowledge" && <Knowledge />}
