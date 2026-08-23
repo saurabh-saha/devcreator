@@ -8,6 +8,7 @@
     "https://*.medium.com/*",
     "https://www.linkedin.com/*",
     "http://localhost:3001/*",
+    "https://devcreator-web.vercel.app/*",
     "<all_urls>"
   ],
   "background": {
@@ -18,7 +19,8 @@
     {
       "matches": [
         "http://localhost:3001/*",
-        "https://devcreator.app/*"
+        "https://devcreator.app/*",
+        "https://devcreator-web.vercel.app/*"
       ],
       "js": ["content-main.js"],
       "run_at": "document_start",
@@ -27,7 +29,8 @@
     {
       "matches": [
         "http://localhost:3001/*",
-        "https://devcreator.app/*"
+        "https://devcreator.app/*",
+        "https://devcreator-web.vercel.app/*"
       ],
       "js": ["content-fetch.js"],
       "run_at": "document_start"
