@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { signIn } from "next-auth/react";
 
 interface Idea {
   score: number;
@@ -18,7 +19,7 @@ interface SavedIdea extends Idea {
 
 const IMP: Record<string, string> = { High: "tg", Medium: "ta", Low: "tr" };
 
-export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void }) {
+export function Ideas({ navigate, guest = false }: { navigate: (s: string, state?: any) => void; guest?: boolean }) {
   const [tab, setTab] = useState<"generate" | "saved">("generate");
 
   const [audience, setAudience] = useState("AI Engineers");
@@ -63,6 +64,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
   }
 
   async function loadSaved() {
+    if (guest) return; // saved ideas need an account
     setSavedLoading(true);
     try {
       const res = await fetch("/api/saved-ideas");
@@ -76,6 +78,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
   }
 
   async function saveIdea(idea: Idea, idx: number) {
+    if (guest) { signIn("google"); return; } // saving needs an account
     setSaving(s => new Set(s).add(idx));
     try {
       const res = await fetch("/api/saved-ideas", {
@@ -218,7 +221,7 @@ export function Ideas({ navigate }: { navigate: (s: string, state?: any) => void
                         disabled={saving.has(idx) || alreadySaved}
                         onClick={() => saveIdea(idea, idx)}
                         style={alreadySaved ? { opacity: 0.4, cursor: "default" } : {}}
-                      >{alreadySaved ? "Saved ✓" : saving.has(idx) ? "Saving…" : "Save"}</button>
+                      >{guest ? "Sign in to save" : alreadySaved ? "Saved ✓" : saving.has(idx) ? "Saving…" : "Save"}</button>
                     );
                   })()}
                 </div>

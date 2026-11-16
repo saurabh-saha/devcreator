@@ -2,7 +2,7 @@
 import { signIn } from "next-auth/react";
 import { BrainMark } from "@/components/brain-mark";
 
-export function LoginScreen() {
+export function LoginScreen({ onTryGuest }: { onTryGuest?: () => void }) {
   return (
     <div className="ob-shell">
       <div className="ob-card">
@@ -23,7 +23,15 @@ export function LoginScreen() {
           </svg>
           Continue with Google
         </button>
-        <p className="ob-note">Google OAuth handles your DevCreator account.</p>
+        {onTryGuest && (
+          <button
+            onClick={onTryGuest}
+            style={{ marginTop: 12, background: "none", border: "none", color: "var(--t2)", fontSize: 13, textDecoration: "underline", cursor: "pointer" }}
+          >
+            Try it without signing in
+          </button>
+        )}
+        <p className="ob-note">Google OAuth handles your DevCreator account. Guests get a few free generations a day.</p>
       </div>
     </div>
   );

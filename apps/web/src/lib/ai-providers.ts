@@ -30,7 +30,7 @@ function buildCandidates(): Candidate[] {
   const groq = process.env.GROQ_API_KEY ? createGroq({ apiKey: process.env.GROQ_API_KEY }) : null;
   return [
     { id: "gemini-2.5-flash", model: google("gemini-2.5-flash"), maxTokens: 8000 },
-    ...(groq ? [{ id: "groq-compound", model: groq("groq/compound") as LanguageModelV1, maxTokens: 3000 }] : []),
+    ...(groq ? [{ id: "groq", model: groq(process.env.GROQ_MODEL || "openai/gpt-oss-120b") as LanguageModelV1, maxTokens: 3000 }] : []), // groq/compound was retired
   ];
 }
 

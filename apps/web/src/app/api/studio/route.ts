@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { auth } from "@/auth";
+import { consumeAi, usageErrorResponse } from "@/lib/usage";
 
 const FORMAT_INSTRUCTIONS: Record<string, string> = {
   li: `Write a LinkedIn post. Short punchy paragraphs (1-3 lines max). Use → or — for lists. End with 3-5 hashtags. No headers. Hook must grab on first line. 150-300 words.`,
@@ -13,11 +14,14 @@ const FORMAT_INSTRUCTIONS: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
+  // Guests can try Studio too, within a small daily limit.
   const session = await auth();
-  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { idea, format } = await req.json();
   if (!idea || !format) return Response.json({ error: "Missing idea or format" }, { status: 400 });
+
+  const usage = await consumeAi(req, session?.user?.email);
+  if (!usage.ok) return usageErrorResponse(usage);
 
   const prompt = `You are writing content for a developer-creator. Voice: direct, opinionated, grounded in real production experience. No fluff. No generic advice. First-person perspective.
 
@@ -32,7 +36,7 @@ Output the content directly — no preamble.`;
   const groq = process.env.GROQ_API_KEY ? createGroq({ apiKey: process.env.GROQ_API_KEY }) : null;
   const MODELS = [
     { model: google("gemini-2.5-flash") },
-    ...(groq ? [{ model: groq("groq/compound") }] : []),
+    ...(groq ? [{ model: groq(process.env.GROQ_MODEL || "openai/gpt-oss-120b") }] : []), // groq/compound was retired
   ];
 
   for (const { model } of MODELS) {
@@ -41,7 +45,9 @@ Output the content directly — no preamble.`;
       return new Response(text, { headers: { "Content-Type": "text/plain" } });
     } catch (err: any) {
       const msg = (err?.message ?? "").toLowerCase();
-      const isQuota = msg.includes("quota") || msg.includes("rate") || msg.includes("spend") || msg.includes("exhausted") || err?.status === 429 || err?.statusCode === 429;
+      const isQuota = msg.includes("quota") || msg.includes("rate") || msg.includes("spend") || msg.includes("exhausted")
+        || msg.includes("depleted") || msg.includes("billing") || msg.includes("credits")
+        || err?.status === 429 || err?.statusCode === 429;
       if (!isQuota) throw err;
     }
   }

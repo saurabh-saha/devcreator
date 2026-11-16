@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { signIn } from "next-auth/react";
 
 // Article tab is shared across linkedin/medium/substack — one generation, copy to each
 const ALL_TABS = [
@@ -31,7 +32,7 @@ type Idea = {
   formats: string[];
 };
 
-export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: string, state?: any) => void }) {
+export function Studio({ idea, navigate, guest = false }: { idea: Idea | null; navigate: (s: string, state?: any) => void; guest?: boolean }) {
   const [activeTab, setActiveTab] = useState("li");
   const [content, setContent] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -47,6 +48,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   ideaRef.current = idea;
 
   useEffect(() => {
+    if (guest) return; // guests have no connected platforms
     fetch("/api/profile")
       .then(r => r.json())
       .then(data => {
@@ -58,6 +60,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
 
   useEffect(() => {
     if (!idea) return;
+    if (guest) { setDraftsLoaded(true); generate("li"); return; } // guests have no saved drafts
     fetch("/api/drafts")
       .then(r => r.json())
       .then(data => {
@@ -80,7 +83,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   }, [idea?.title]);
 
   useEffect(() => {
-    if (idea) return;
+    if (idea || guest) return;
     fetch("/api/drafts")
       .then(r => r.json())
       .then(data => setAllDrafts((data.drafts ?? []).map((d: any) => ({ ...d, ideaData: d.ideaData ?? d.idea_data }))))
@@ -157,7 +160,11 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         body: JSON.stringify({ idea: currentIdea, format }),
         signal: ctrl.signal,
       });
-      if (!res.ok || !res.body) throw new Error("Failed");
+      if (!res.ok || !res.body) {
+        // Show the server's reason (e.g. daily limit reached) when there is one.
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Generation failed. Try again.");
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -168,7 +175,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         text += decoder.decode(value, { stream: true });
         setContent(c => ({ ...c, [format]: text }));
       }
-      if (text) {
+      if (text && !guest) {
         fetch("/api/drafts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -183,7 +190,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
       }
     } catch (e: any) {
       if (e.name !== "AbortError") {
-        setContent(c => ({ ...c, [format]: "Generation failed. Try again." }));
+        setContent(c => ({ ...c, [format]: e.message || "Generation failed. Try again." }));
       }
     } finally {
       setLoading(l => ({ ...l, [format]: false }));
@@ -191,6 +198,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
   }
 
   async function saveDraft() {
+    if (guest) { signIn("google"); return; } // saving needs an account
     const currentIdea = ideaRef.current;
     if (!current || !currentIdea) return;
     setDraftSaving(true);
@@ -298,7 +306,7 @@ export function Studio({ idea, navigate }: { idea: Idea | null; navigate: (s: st
         <div className="stact">
           <button className="btn bp" disabled={!current || isLoading} onClick={() => navigator.clipboard.writeText(current)}>Copy</button>
           <button className="btn bs" disabled={!current || isLoading || draftSaving} onClick={saveDraft}>
-            {draftSaved ? "Saved ✓" : draftSaving ? "Saving…" : "Save draft"}
+            {guest ? "Sign in to save" : draftSaved ? "Saved ✓" : draftSaving ? "Saving…" : "Save draft"}
           </button>
           <button className="btn bs" disabled={isLoading} onClick={() => generate(activeTab)}>Regenerate</button>
           <button className="btn bg-btn" onClick={() => navigate("ideas")}>← Back to Ideas</button>

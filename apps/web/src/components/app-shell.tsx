@@ -12,7 +12,7 @@ import { Knowledge } from "@/screens/knowledge";
 import { Analytics } from "@/screens/analytics";
 import { Integrations } from "@/screens/integrations";
 import { Profile } from "@/screens/profile";
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signOut, signIn } from "next-auth/react";
 
 type Screen = "dashboard" | "chat" | "insights" | "ideas" | "studio" | "campaigns" | "projects" | "knowledge" | "analytics" | "integrations" | "profile";
 
@@ -41,19 +41,46 @@ const NAV_LIB = [
   { id: "analytics", label: "Analytics", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/><line x1="2" y1="20" x2="22" y2="20" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/></svg> },
 ];
 
+// What guests can use without signing in.
+const GUEST_SCREENS: Screen[] = ["ideas", "studio"];
+
+const LockIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: "auto", opacity: 0.6 }} aria-label="Sign in required">
+    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+    <path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+// Shown in place of a screen that needs an account.
+function GuestLocked({ title }: { title: string }) {
+  return (
+    <div style={{ maxWidth: 440, margin: "64px auto", textAlign: "center", display: "grid", gap: 12 }}>
+      <div style={{ fontSize: 28 }}>🔒</div>
+      <h2 style={{ fontSize: 18, fontWeight: 600 }}>{title} needs an account</h2>
+      <p style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.6 }}>
+        Sign in with Google to connect LinkedIn, Medium, Substack and GitHub, save drafts, and get insights from your own content.
+      </p>
+      <button className="btn bp" style={{ justifySelf: "center" }} onClick={() => signIn("google")}>Sign in with Google</button>
+    </div>
+  );
+}
+
 function pathToScreen(path: string): Screen {
   const seg = path.replace(/^\//, "") || "dashboard";
   const valid: Screen[] = ["dashboard","chat","insights","ideas","studio","campaigns","projects","knowledge","analytics","integrations","profile"];
   return valid.includes(seg as Screen) ? (seg as Screen) : "dashboard";
 }
 
-export function AppShell() {
+export function AppShell({ guest = false, onExitGuest }: { guest?: boolean; onExitGuest?: () => void } = {}) {
   const { data: sessionData } = useSession();
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialScreen = params?.get("screen")
     ? (params.get("screen") as Screen)
     : (typeof window !== "undefined" ? pathToScreen(window.location.pathname) : "dashboard");
-  const [screen, setScreen] = useState<Screen>(initialScreen);
+  const [screen, setScreen] = useState<Screen>(
+    guest && !GUEST_SCREENS.includes(initialScreen) ? "ideas" : initialScreen
+  );
+  const locked = guest && !GUEST_SCREENS.includes(screen);
   const [studioIdea, setStudioIdea] = useState<Record<string, any> | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [toast, setToast] = useState<string | null>(null);
@@ -107,7 +134,7 @@ export function AppShell() {
   function NavItem({ id, label, icon }: { id: string; label: string; icon: React.ReactNode }) {
     return (
       <button className={`sb-item${screen === id ? " active" : ""}`} onClick={() => navigate(id)}>
-        {icon}{label}
+        {icon}{label}{guest && !GUEST_SCREENS.includes(id as Screen) && <LockIcon />}
       </button>
     );
   }
@@ -131,6 +158,26 @@ export function AppShell() {
           <div className="sb-div" />
           <NavItem id="integrations" label="Integrations" icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="1.75"/><circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="1.75"/><circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="1.75"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/></svg>} />
         </nav>
+        {guest ? (
+        <div className="sb-user" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="sb-av">G</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="sb-uname">Guest</div>
+              <div className="sb-uemail">Not signed in</div>
+            </div>
+          </div>
+          <button className="btn bp" onClick={() => signIn("google")} style={{ fontSize: 12, padding: "6px 10px" }}>
+            Sign in with Google
+          </button>
+          <button
+            onClick={onExitGuest}
+            style={{ fontSize: 11, color: "var(--t3)", background: "none", border: "1px solid var(--bd)", borderRadius: 5, padding: "4px 10px", cursor: "pointer", textAlign: "center" }}
+          >
+            Exit guest mode
+          </button>
+        </div>
+        ) : (
         <div className="sb-user" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
           <button onClick={() => navigate("profile")} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "none", border: "none", textAlign: "left", padding: 0, minWidth: 0 }}>
             {sessionData?.user?.image
@@ -149,6 +196,7 @@ export function AppShell() {
             Sign out
           </button>
         </div>
+        )}
       </aside>
 
       {/* MAIN */}
@@ -190,14 +238,25 @@ export function AppShell() {
               <button onClick={() => setErrorBanner(null)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 4px", opacity: 0.7 }}>×</button>
             </div>
           )}
-          {screen === "chat" ? (
+          {guest && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+              padding: "10px 16px", background: "var(--s2, rgba(59,130,246,0.08))", borderBottom: "1px solid var(--bd)", fontSize: 12,
+            }}>
+              <span>👋 You're trying DevCreator as a guest: a few free generations a day, nothing is saved. Sign in to save drafts and connect your platforms.</span>
+              <button className="btn bp" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => signIn("google")}>Sign in with Google</button>
+            </div>
+          )}
+          {locked ? (
+            <div className="screen"><GuestLocked title={TITLES[screen]} /></div>
+          ) : screen === "chat" ? (
             <Chat navigate={navigate} />
           ) : (
             <div className="screen">
               {screen === "dashboard" && <Dashboard navigate={navigate} />}
               {screen === "insights" && <Insights navigate={navigate} />}
-              {screen === "ideas" && <Ideas navigate={navigate} />}
-              {screen === "studio" && <Studio idea={studioIdea as any} navigate={navigate} />}
+              {screen === "ideas" && <Ideas navigate={navigate} guest={guest} />}
+              {screen === "studio" && <Studio idea={studioIdea as any} navigate={navigate} guest={guest} />}
               {screen === "campaigns" && <Campaigns navigate={navigate} />}
               {screen === "projects" && <Projects />}
               {screen === "knowledge" && <Knowledge />}

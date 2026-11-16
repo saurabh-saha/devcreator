@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { consumeAi, usageErrorResponse } from "@/lib/usage";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { pgTable, uuid, text, timestamp, integer, pgEnum, index } from "drizzle-orm/pg-core";
@@ -223,6 +224,9 @@ Based on this REAL data:
 5. quickStat: One striking data point (e.g. "Your top post has 47× the impressions of your average post").
 
 Be specific. Use real numbers from the data. Do not invent numbers — if unsure, describe patterns without made-up multipliers.`;
+
+    const usage = await consumeAi(req, session.user.email);
+    if (!usage.ok) return usageErrorResponse(usage);
 
     const { object } = await generateObject({
       model: google("gemini-2.5-flash"),

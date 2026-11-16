@@ -1,5 +1,7 @@
 import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
+import { auth } from "@/auth";
+import { consumeAi, usageErrorResponse } from "@/lib/usage";
 
 const SYSTEM = `You are the Creator Brain — a sharp, data-aware AI coach for Saurabh Saha, a developer-creator who builds an audience across LinkedIn, YouTube, and Instagram.
 
@@ -18,6 +20,13 @@ When asked for content ideas, structure each idea with:
 Be direct. Be specific. No fluff. Give real recommendations based on what actually works for developer-creators.`;
 
 export async function POST(req: Request) {
+  // Creator Brain chat is for signed-in users only.
+  const session = await auth();
+  if (!session?.user?.email) return Response.json({ error: "Sign in to use Creator Brain chat." }, { status: 401 });
+
+  const usage = await consumeAi(req, session.user.email);
+  if (!usage.ok) return usageErrorResponse(usage);
+
   const { messages } = await req.json();
 
   try {

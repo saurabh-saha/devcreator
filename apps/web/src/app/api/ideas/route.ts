@@ -1,7 +1,9 @@
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
 import { auth } from "@/auth";
+import { consumeAi, usageErrorResponse } from "@/lib/usage";
 import { db } from "@/lib/db";
 import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { and, eq } from "drizzle-orm";
@@ -84,17 +86,24 @@ export async function POST(req: Request) {
     }
   }
 
-  // Generate fresh
+  // Generate fresh (cache hits above don't count against the daily limit)
+  const usage = await consumeAi(req, session?.user?.email);
+  if (!usage.ok) return usageErrorResponse(usage);
+
   const n = Math.min(count ?? MAX_IDEAS, MAX_IDEAS);
   const prompt = `Generate ${n} ideas. Audience: ${audience}. Topic: ${topic}. Goal: ${goal}. Platform: ${platform}. Hooks must be punchy and specific.`;
 
+  // Gemini first; Groq as a backup (JSON mode) if Gemini is out of quota or credits.
+  const groq = process.env.GROQ_API_KEY ? createGroq({ apiKey: process.env.GROQ_API_KEY }) : null;
   const MODELS = [
-    { model: google("gemini-2.5-flash"), maxTokens: 3000 },
+    { model: google("gemini-2.5-flash"), maxTokens: 3000, mode: "auto" as const },
+    ...(groq ? [{ model: groq(process.env.GROQ_MODEL || "openai/gpt-oss-120b"), maxTokens: 3000, mode: "json" as const }] : []),
   ];
 
   function quotaError(err: any) {
     const msg = (err?.message ?? "").toLowerCase();
-    return msg.includes("quota") || msg.includes("rate") || err?.status === 429 || err?.statusCode === 429;
+    return msg.includes("quota") || msg.includes("rate") || msg.includes("depleted") || msg.includes("billing") || msg.includes("credits")
+      || err?.status === 429 || err?.statusCode === 429;
   }
 
   function resetMessage() {
@@ -109,9 +118,9 @@ export async function POST(req: Request) {
   }
 
   let object: z.infer<typeof IdeaSchema> | null = null;
-  for (const { model, maxTokens } of MODELS) {
+  for (const { model, maxTokens, mode } of MODELS) {
     try {
-      const result = await generateObject({ model, system: SYSTEM, prompt, schema: IdeaSchema, maxTokens });
+      const result = await generateObject({ model, system: SYSTEM, prompt, schema: IdeaSchema, maxTokens, mode });
       object = result.object;
       break;
     } catch (err: any) {
